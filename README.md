@@ -11,7 +11,11 @@ The UV projector of the Elegoo Mars 4 DLP is [developed and produced by Anhua (D
 
 ### Sourcing the Projector
 
-The easiest and cheapest way to source the projector is to buy a Elegoo Mars 4 DLP. At the time of writing (2024-02-02) the resin printer can be purchased in the eu for 275 euro (discounted).
+![the anhua projector taken from the Elegoo Mars 4 DLP](media/anhua_D63ZS50B.jpg)
 
-Alternatively, the projector can be puchased directly from Anhua; but there may be small differences in the heatsink, LED source and other items. Also expect to pay a premium due to shipping, broker cost etc.
+The easiest and cheapest way to source the projector is to buy a Elegoo Mars 4 DLP. At the time of writing (2024-02-02) the resin printer can be purchased in the EU for 275 euro (discounted).
+
+Alternatively, the projector can be purchased directly from Anhua; but there may be small differences in the heatsink, LED source and other items. Also expect to pay a premium due to shipping, broker cost etc.
+
+### 
 
