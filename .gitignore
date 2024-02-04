@@ -1,0 +1,3 @@
+# to keep file sizes manageable we turn all PNGs into small JPGs
+*.PNG
+*.png
