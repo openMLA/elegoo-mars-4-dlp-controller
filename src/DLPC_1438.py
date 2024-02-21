@@ -1,6 +1,7 @@
 import warnings
 import RPi.GPIO as GPIO
 import time
+import enum
 
 
 # Pin numbering
@@ -10,6 +11,12 @@ HOST_IRQ = 19
 
 #  DLPC1438 on Anyubic board address
 DLPC1438_addr = 0x1B
+
+class Mode(enum.IntEnum):
+    STANDBY = 0xFF,
+    EXTERNALPRINT = 0x06,
+    TESTPATTERN = 0x01
+
 
 def intialise_DLPC1438(i2c_bus):
     """
@@ -32,7 +39,7 @@ def intialise_DLPC1438(i2c_bus):
     if i2c_bus.read_byte(DLPC1438_addr) != 0:  # check if i2c is already active. Then we are in [2]
         warnings.warn("DLPC1438 is already powered on when script initialised. No startup action needed.")
         return
-    else:
+    else:  # DCLP1438 seems to still be turned off (case [1]). Let's start it
         print("Setting PROJ_ON high to start DLPC1438 startup sequence... ")
 
         # send the PROJ_ON signal and wait for the HOST_IRQ signal to go high, signalling the DLPC1438
@@ -52,3 +59,19 @@ def intialise_DLPC1438(i2c_bus):
             time.sleep(1)
 
         return
+
+
+def switch_mode(new_mode, i2c_bus):
+    # check that the new mode is actually a valid enum entry 
+    if isinstance(new_mode, Mode):  
+        print(f"> Switching DLPC1438 mode to {new_mode.name}\t (currently in {i2c_bus.read_i2c_block_data(DLPC1438_addr,0x06,1)[0]})")
+
+        i2c_bus.write_i2c_block_data(DLPC1438_addr, 0x05, [new_mode])  # send the new mode setting
+
+        time.sleep(0.3)  # need some time to switch between modes
+
+        # check that the mode switch was successful
+        assert i2c_bus.read_i2c_block_data(DLPC1438_addr,0x06,1)[0] == new_mode.value, f"Was unable to switch the DLPC 1438 to MODE:{new_mode}"
+
+    else:
+        raise Exception("Invalid DLPC1438 mode provided. Use the Enum 'Mode', rather than the hex value.")

@@ -1,7 +1,7 @@
 import RPi.GPIO as GPIO
 import time
 import smbus  # i2c
-from DLPC_1438 import intialise_DLPC1438
+from DLPC_1438 import intialise_DLPC1438, switch_mode, Mode
 
 
 GPIO.setmode(GPIO.BCM)
@@ -20,9 +20,7 @@ try:
     print(f"we are in mode: {mode}")
 
     # switch to testpattern mode
-    bus.write_i2c_block_data(DLPC1438_addr, 0x05, [0x01])  # testpattern (seems quite dim in default state)
-    mode = bus.read_i2c_block_data(DLPC1438_addr,0x06,1) 
-    print(f"are we in tespattern mode? : {mode}")
+    switch_mode(Mode.TESTPATTERN, bus)
 
     # enable flood light
     bus.write_i2c_block_data(DLPC1438_addr, 0x16, [0b00001111])
@@ -31,9 +29,7 @@ try:
     time.sleep(1)  # back to testpattern (dim)
 
     # and back to standby
-    bus.write_i2c_block_data(DLPC1438_addr, 0x05, [0xFF])  # standby
-    mode = bus.read_i2c_block_data(DLPC1438_addr,0x06,1) 
-    print(f"back in standby? : {mode}")
+    switch_mode(Mode.STANDBY, bus)
 
     GPIO.cleanup()
 
