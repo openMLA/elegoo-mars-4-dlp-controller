@@ -33,13 +33,14 @@ try:
     # it will take maybe a second for SYS_RDY to go high and we need to wait for that before exposing
     await_SYS_RDY()  
 
-    send_image_to_buffer(spi, bus)  # send the image data into FPGA buffer over SPI
+    #set_background(0, spi, bus)
+    send_split_image_to_buffer(spi, bus)  # send the image data into FPGA buffer over SPI
     time.sleep(0.5)  # probably not needed   # TODO: remove this or find minimum time?
 
     expose_pattern(0, bus)  #  for now expose until it is switched to standby or explicit stop cmd
 
 
-    time.sleep(5)  # wait before cleanup
+    time.sleep(10)  # wait before cleanup
 
     # and back to standby
     switch_mode(Mode.STANDBY, bus)
