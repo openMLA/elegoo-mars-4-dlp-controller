@@ -251,6 +251,7 @@ def send_image_over_spi(offset_width, offset_height, pixel_data, spi_bus):
     row_tracker = 0
 
     # Send the data over SPI in multiple tranmissions
+    SPI_start = time.time()
     for (transfer_idx, data) in enumerate(split_data):
         print(f"- transfer {transfer_idx} has shape: {data.shape}")
         if transfer_idx == 0:
@@ -265,7 +266,8 @@ def send_image_over_spi(offset_width, offset_height, pixel_data, spi_bus):
 
 
         # Note that xfer3 has a max number of bytes it can transfer set in /sys/module/spidev/parameters/bufsiz
-        spi_bus.xfer3(preamble + data.flatten("F").tolist())  # TODO: CRC needed?
+        spi_bus.writebytes2(np.insert(data.flatten("F"), 0, preamble))  #  CRC does not seemt o be needed
+    print(f"SPI transfer took, {time.time()-SPI_start} seconds. At {spi_bus.max_speed_hz}Hz clock.")
 
 def send_image_to_buffer(spi_bus, i2c_bus):
     print("> Sending Image Data over SPI...")

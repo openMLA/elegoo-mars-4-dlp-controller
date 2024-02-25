@@ -15,6 +15,7 @@ try:
     spi = spidev.SpiDev()
     spi.open(0, 0)
     spi.max_speed_hz = 1000000  # up to 50 MB/s
+    spi.max_speed_hz = 30000000  # up to 50 MB/s
     spi.mode = 3  #TODO: figure out which mode is right. See https://e2e.ti.com/support/dlp-products-group/dlp/f/dlp-products-forum/1187357/dlp300s-dlp300s-and-dlpc1438-application-sample
 
     # Initialise the DLPC1438
