@@ -1,6 +1,5 @@
-# to keep file sizes manageable we turn all PNGs into small JPGs
-*.PNG
-*.png
+# Some project-specific ignores
+*spi.txt
 
 # For PCBs designed using KiCad: https://www.kicad.org/
 # Format documentation: https://kicad.org/help/file-formats/
