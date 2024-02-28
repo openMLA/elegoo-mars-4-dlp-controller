@@ -1,13 +1,27 @@
 
 
-> [!IMPORTANT]  
-> This project is under construction. I do not recommend having the board manufactured at this point.
+> [!IMPORTANT]
+>
+> UV pattern projection is possible with the current code and hardware, but some more improvements are in the works:
+>
+> * Enclosure design
+> * Code improvements
+>
+> I don't expect any changes to the PCB design in the future, so those parts could be sourced already.
 
-# Raspberry Pi hat for Elegoo Mars 4 DLP board
+Crucial information necessary for users to succeed.
 
-A hat for the raspberry pi that allows the Elegoo Mars 4 DLP's UV light projector to be controlled. I recommend using a raspberry pi zero 2; as the linear regulator on board doesn't really have enough juice for the Pi 5 or the full size Pi boards.
+# Raspberry Pi hat for Elegoo Mars 4 DLP board 🔦
+
+A hat for the raspberry pi that allows a resin 3D printer's **UV light** projector to be controlled. Note that this is (in direct form) only suitable for the projector in the Mars 4 DLP. If you have other boards check out the repository for the [Anycubic Photon Ultra](https://github.com/openMLA/photon-ultra-controller), or get in touch for modifications needed. 
+
+The designs in this repository then allow you to project arbitrary **2560x1440** images with UV light on a surface. The native projected pixel size is **50μm**, making PCB fabrication an interesting application. All you would need is a bit of glue code to convert the Gerber files to a rasterised image and then you could easily use the existing 3D printer frame to expose PCB boards. Since you have all the files and access to the code, you can easily tune it to whatever production needs you have.
 
 The UV projector of the Elegoo Mars 4 DLP is [developed and produced by Anhua (D63ZS50B)](https://www.anhuaoe.com/en/industriause/info.aspx?itemid=2694), and seems to be this variety. Under the hood it uses the Texas Instruments DLP300s or DLP301s digital micromirror array.
+
+
+> [!NOTE]  
+> While PCB fabrication is the most straightforward application for this board, this is actually developed as part of an effort towards an open hardware photolithography system. Check out the [openMLA organisation](https://github.com/openMLA/) for more info.
 
 ### Sourcing the Projector
 
@@ -17,5 +31,14 @@ The easiest and cheapest way to source the projector is to buy a Elegoo Mars 4 D
 
 Alternatively, the projector can be purchased directly from Anhua; but there may be small differences in the heatsink, LED source and other items. Also expect to pay a premium due to shipping, broker cost etc.
 
-### 
+### Project BOM
 
+The total costs for the project consists of 3 parts:
+
+| Expense Description        | Cost  |
+| -------------------------- | ----- |
+| Elegoo Mars 4 DLP          | 274   |
+| Electronics/PCB            | 52.38 |
+| Enclosure/3D printed parts | -     |
+
+_The PCB costs are further broken down [in the BOM in the PCB directory](./PCB/README.md)_

@@ -6,10 +6,9 @@ To make our life a little easier, you can add an (optional) dc-dc converter that
 
 Finally, the board breaks out some extra pins for adding your own extra custom bits. SPI and I2C connections, as well as some spare GPIO pins. This may be useful if you want to have exposure occur based on some sensor readout, or maybe tie UV exposure to a simple button for batch production where you don't want to send commands over SSH.
 
-```
+
 > [!IMPORTANT]  
 > Not every connection has been verified to work. I suspect they are all fine since its not a very complex board or high frequency signals. At least the minimum set of pins required for data/exposure seem to work fine.
-```
 
 ![](../media/PCB_3D_view.PNG)
 
