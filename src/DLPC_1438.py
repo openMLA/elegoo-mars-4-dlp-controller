@@ -2,8 +2,10 @@ import warnings
 import RPi.GPIO as GPIO
 import time
 import enum
+import math
+import numpy as np
 
-from img_convert import image_to_bytes
+from img_convert import image_to_arr
 
 # Pin numbering
 PROJ_ON = 5
@@ -12,6 +14,7 @@ HOST_IRQ = 19
 SPI_RDY = 7
 PRINT_ACTIVE = 13
 
+SPI_BUFFERSIZE = 65536  # note the default config for raspberry pi is 4096
 
 #  DLPC1438 on Anyubic board address
 DLPC1438_addr = 0x1B
@@ -176,10 +179,99 @@ def format_spi_data(col_start, col_end, row_start, pixel_data):
         output.write(str([bin(val) + " , " for val in preamble]))
     return data
 
+def rowcol_data_block(col_start, col_end, row_start):
+    rowcol_data_block_raw = col_start + (col_end << 5) + (row_start << 10) + (0b1111 << 28)
+    rowcol_data_block = list(rowcol_data_block_raw.to_bytes(4, byteorder = 'little'))
+    return  rowcol_data_block
+
+def send_image_over_spi(offset_width, offset_height, pixel_data, spi_bus):
+    """
+    Generate (multiple) spi transfers to transfer image data to FPGA.
+
+    Offset width specifies the offset of the image along width in pixels from (top) left of frame.
+    Offset height is the same, but for the vertical offset in pixels from top (left) of frame.
+    """
+
+    img_width = pixel_data.shape[0]
+    img_height = pixel_data.shape[1]
+    
+    assert img_width <= 2560, "Max image width is 2560 pixels"
+    assert img_height <= 1440, "Max image height is 1440 pixels"
+
+    # The SPI data format requires "start/end col" and "start_row"
+    col_start = math.floor(offset_width/128)  # per 128
+    row_start = math.floor(offset_height/2)  # per 2
+
+    # if the offset is not a perfect multiple of 128 or 2, we will 0 pad the "start/front" pixel data
+    pad_width_start = offset_width % 128
+    pad_height_start = offset_height % 2
+
+    # we also need to pad the "end/back" of the data because we can only specify end_col in steps
+    # of 128.
+    pad_width_end =  (128 - pad_width_start + img_width) % 128
+    pad_height_end = (2 - pad_height_start + img_height) % 2
+
+    print(f"Start col: {col_start} (leftpad:{pad_width_start}, rightpad:{pad_width_end})")
+    print(f"Start row: {row_start} (leftpad:{pad_height_start}, rightpad:{pad_height_end})")
+
+    # 0-pad the data 
+    padded_data = np.pad(pixel_data, ((pad_width_start,pad_width_end), (pad_height_start,pad_height_end)))
+
+    print(f"Original dims {pixel_data.shape}, padded dims: {padded_data.shape}")
+
+    width = padded_data.shape[0]
+    height = padded_data.shape[1]
+
+    assert width % 128 == 0, "Padded data does not fit neatly in SPI transmission"
+    assert height % 2 == 0, "Padded data does not fit neatly in SPI transmission"
+    # we also need to check if the padded image is still within bounds as someone could input
+    # a 2560x1440 image and shift it by e.g. 500,500 pixels, which obviously would not work 
+    assert width <= 2560, "Image width after shifting exceeds the max width of 2560 pixels"
+    assert height <= 1440, "Image height after shifting exceeds the max width of 1440 pixels"
+
+    col_end = int(col_start + width/128 - 1)  # note: the width is start_col up to *and including* end_col
+
+    print(f"End col: {col_end}")
+
+    # now we need to figure out how many rows of data we can transfer in a single SPI transfer
+    # based on the image width and our SPI buffer size. We need 10 bytes (or less) for other parts 
+    # of SPI command besides pixel data.
+
+    # TODO: ensure that this is always an even number!
+    num_rows = math.floor( (SPI_BUFFERSIZE-10) / width) - 1  # TODO: can we be more efficient here?
+
+    assert num_rows*width < (SPI_BUFFERSIZE - 10)  
+
+    num_transfers = math.ceil(height / num_rows)
+    print(f"The source image of dims {padded_data.shape} will be split into {num_transfers} transfers of (max) size {width}x{num_rows}")
+
+    #  split the data into chunks. Note that the last chunk is probably smaller than the other ones
+    split_data = np.split(padded_data, [(i+1)*num_rows for i in range(num_transfers-1)], axis=1)
+
+    row_tracker = 0
+
+    # Send the data over SPI in multiple tranmissions
+    SPI_start = time.time()
+    for (transfer_idx, data) in enumerate(split_data):
+        print(f"- transfer {transfer_idx} has shape: {data.shape}")
+        if transfer_idx == 0:
+            preamble = [0x04] + rowcol_data_block(col_start, col_end, row_start) + [0x00] + list(padded_data.size.to_bytes(4, byteorder = 'little'))
+
+        else:
+            # note that following trasnfers do not contain the "length" of the transfer in preambe
+            preamble = [0x04] + rowcol_data_block(col_start, col_end, row_start + row_tracker) + [0x00]
+            
+        print(f"row index {row_start + row_tracker}")  #TODO: remove
+        row_tracker += int(data.shape[1] / 2)  # divided by 2 because the row_start is in steps of 2 (see SPI format)
+
+
+        # Note that xfer3 has a max number of bytes it can transfer set in /sys/module/spidev/parameters/bufsiz
+        spi_bus.writebytes2(np.insert(data.flatten("F"), 0, preamble))  #  CRC does not seemt o be needed
+    print(f"SPI transfer took, {time.time()-SPI_start} seconds. At {spi_bus.max_speed_hz}Hz clock.")
 
 def send_image_to_buffer(spi_bus, i2c_bus):
     print("> Sending Image Data over SPI...")
-    pxldata = image_to_bytes()
+    pxldata = image_to_arr('../media/openMLA_logo_256x144.png')
 
     # select buffer 0 to be active (i.e. receive SPI data)
     i2c_bus.write_i2c_block_data(DLPC1438_addr, 0xC5, [0x00])  
@@ -194,6 +286,42 @@ def send_image_to_buffer(spi_bus, i2c_bus):
 
     # and make buffer 1 the active and have buffer 0 (with our data) be accessible to DLPC1438
     i2c_bus.write_i2c_block_data(DLPC1438_addr, 0xC5, [0x01])  
+    print(f"Active buffer index: {i2c_bus.read_i2c_block_data(DLPC1438_addr,0xC6,1)[0]}")
+
+
+def set_background(intensity, spi_bus, i2c_bus):
+    print("> Setting all pixels to intensity:{intensity} and turning projector on!")
+
+    assert 0 <= intensity < 255, "Intensity must be [0,255]"
+
+    pxldata = (np.ones((2560, 1440))*intensity).astype(int)
+
+    # select buffer 0 to be active (i.e. receive SPI data)
+    i2c_bus.write_i2c_block_data(DLPC1438_addr, 0xC5, [0x01])  
+    time.sleep(0.3)
+
+    send_image_over_spi(0, 0, pxldata, spi_bus)
+
+    time.sleep(0.3)
+
+    # and make buffer 1 the active and have buffer 0 (with our data) be accessible to DLPC1438
+    i2c_bus.write_i2c_block_data(DLPC1438_addr, 0xC5, [0x00])  
+    print(f"Active buffer index: {i2c_bus.read_i2c_block_data(DLPC1438_addr,0xC6,1)[0]}")
+
+def send_split_image_to_buffer(filename, xoffset, yoffset, spi_bus, i2c_bus):
+    print("> Sending Image Data over SPI... (SPLIT TECHNIQUE)")
+    pxldata = image_to_arr(filename)
+
+    # select buffer 0 to be active (i.e. receive SPI data)
+    i2c_bus.write_i2c_block_data(DLPC1438_addr, 0xC5, [0x01])  
+    time.sleep(0.3)
+
+    send_image_over_spi(xoffset, yoffset, pxldata, spi_bus)
+
+    time.sleep(0.3)
+
+    # and make buffer 1 the active and have buffer 0 (with our data) be accessible to DLPC1438
+    i2c_bus.write_i2c_block_data(DLPC1438_addr, 0xC5, [0x00])  
     print(f"Active buffer index: {i2c_bus.read_i2c_block_data(DLPC1438_addr,0xC6,1)[0]}")
 
 
