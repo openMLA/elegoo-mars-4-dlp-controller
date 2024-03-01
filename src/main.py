@@ -14,7 +14,6 @@ try:
     # Initialise SPI (bus 0, with CE0 as chip select pin)
     spi = spidev.SpiDev()
     spi.open(0, 0)
-    spi.max_speed_hz = 1000000  # up to 50 MB/s
     spi.max_speed_hz = 30000000  # up to 50 MB/s
     spi.mode = 3  #TODO: figure out which mode is right. See https://e2e.ti.com/support/dlp-products-group/dlp/f/dlp-products-forum/1187357/dlp300s-dlp300s-and-dlpc1438-application-sample
 
@@ -34,14 +33,14 @@ try:
     # it will take maybe a second for SYS_RDY to go high and we need to wait for that before exposing
     await_SYS_RDY()  
 
-    #set_background(0, spi, bus)
-    send_split_image_to_buffer(spi, bus)  # send the image data into FPGA buffer over SPI
-    time.sleep(0.5)  # probably not needed   # TODO: remove this or find minimum time?
+    set_background(0, spi, bus)
+    time.sleep(0.5)
 
+    send_split_image_to_buffer('../media/openMLA_logo_1280x720.png', 640,360, spi, bus)  # send the image data into FPGA buffer over SPI
+    time.sleep(0.1)  # probably not needed   # TODO: remove this or find minimum time?
     expose_pattern(0, bus)  #  for now expose until it is switched to standby or explicit stop cmd
 
-
-    time.sleep(10)  # wait before cleanup
+    time.sleep(5)  # wait before cleanup
 
     # and back to standby
     switch_mode(Mode.STANDBY, bus)

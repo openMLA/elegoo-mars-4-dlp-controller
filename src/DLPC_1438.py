@@ -308,15 +308,15 @@ def set_background(intensity, spi_bus, i2c_bus):
     i2c_bus.write_i2c_block_data(DLPC1438_addr, 0xC5, [0x00])  
     print(f"Active buffer index: {i2c_bus.read_i2c_block_data(DLPC1438_addr,0xC6,1)[0]}")
 
-def send_split_image_to_buffer(spi_bus, i2c_bus):
+def send_split_image_to_buffer(filename, xoffset, yoffset, spi_bus, i2c_bus):
     print("> Sending Image Data over SPI... (SPLIT TECHNIQUE)")
-    pxldata = image_to_arr('../media/openMLA_logo_1024x577.png')
+    pxldata = image_to_arr(filename)
 
     # select buffer 0 to be active (i.e. receive SPI data)
     i2c_bus.write_i2c_block_data(DLPC1438_addr, 0xC5, [0x01])  
     time.sleep(0.3)
 
-    send_image_over_spi(550, 650, pxldata, spi_bus)
+    send_image_over_spi(xoffset, yoffset, pxldata, spi_bus)
 
     time.sleep(0.3)
 
