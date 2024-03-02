@@ -5,11 +5,7 @@
 > UV pattern projection is possible with the current code and hardware, but some more improvements are in the works:
 >
 > * Enclosure design
-> * Code improvements
->
-> I don't expect any changes to the PCB design in the future, so those parts could be sourced already.
-
-Crucial information necessary for users to succeed.
+> 
 
 # Raspberry Pi hat for Elegoo Mars 4 DLP board 🔦
 
