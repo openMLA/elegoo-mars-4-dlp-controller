@@ -351,9 +351,12 @@ class DLPC1438:
     def set_background(self, intensity):
         print(f"> Setting all pixels to intensity:{intensity} and turning projector on!")
 
-        assert 0 <= intensity < 255, "Intensity must be [0, 255]"
+        assert isinstance(intensity, int), "background intensity value must be an 8-bit integer"
+        assert 0 <= intensity < 256, "Intensity must be [0, 255]"
  
-        pxldata = (np.ones((2560, 1440))*intensity).astype(int)
+        # yes, np.transpose(np.ones(y,x)) transfers faster than np.onex(x,y)
+        # I agree it feels a bit silly
+        pxldata = np.transpose((np.ones((1440, 2560))*int(intensity)).astype(np.uint8))
 
         self.split_spi_transmission(0, 0, pxldata)
 
