@@ -60,6 +60,11 @@ class DLPC1438:
         try:  # we try to communicate over I2C. This will trow I/O error if DLPC1438 is not active yet
             i2c_bus.read_byte(self.addr)  # check if i2c is already active. Then we are in [2]
             warnings.warn("DLPC1438 is already powered on when script initialised. No startup action needed.")
+
+            # check the current active buffer
+            self.SPI_BUFFER_INDEX = self.__i2c_read(0xC6,1)[0]
+            print(f"Active buffer index at startup: {self.SPI_BUFFER_INDEX}")
+
             return
         except IOError:  # DCLP1438 seems to still be turned off (case [1]). Let's start it
             print("Setting PROJ_ON high to start DLPC1438 startup sequence... ")
@@ -80,7 +85,12 @@ class DLPC1438:
             while i2c_bus.read_byte(self.addr) == 0:  
                 time.sleep(1)
 
+            # check the current active buffer
+            self.SPI_BUFFER_INDEX = self.__i2c_read(0xC6,1)[0]
+            print(f"Active buffer index at startup: {self.SPI_BUFFER_INDEX}")
+
             return
+        
     def __i2c_read(self, register, length):
         """Read I2C information from DCLP1438 at given register, expecting a certain number of bytes
         of data.
@@ -170,7 +180,7 @@ class DLPC1438:
             print("waiting for SYS_RDY")
 
 
-    def expose_pattern(self, exposed_frames):
+    def expose_pattern(self, exposed_frames, dark_frames=5):
         """
         Start exposure of the buffer available to FPGA with a specified number of exposed frames.
 
@@ -178,8 +188,15 @@ class DLPC1438:
         number of exposed frames divided by 60. Note that you can also configure
         the exposure to continue indefinitely until the stop_exposure() command is called, by sending
         -1 as the number of exposed frames.
+
+        Taking 5 dark frames is recommended if you call this command just after swapping image
+        buffer. If you are doing other operations that take and equivalent amount of time
+        after swapping the buffer before calling this function you could set this number to 0
+        to increase frame throughput.
         """
         assert GPIO.input(self.SYS_RDY), "SYS_RDY signal is not high yet, cannot expose frames yet."
+        assert isinstance(dark_frames, int), "dark_frames must be a 16-bit integer"
+        assert 0 <= dark_frames < 65536, "dark_frames must be 16-bit (i.e. in range [0, 65535])"
 
         if exposed_frames > 0:
             assert isinstance(exposed_frames, int), "exposed_frames must be a 16-bit integer"
@@ -187,20 +204,24 @@ class DLPC1438:
 
             # start exposure of current buffer for the duration specifed in exposure time
             print(f"> Starting UV exposure (for {exposed_frames} frames / {exposed_frames/60:.2f}sec)!")
-            frame_data = [0x00, 0x05, 0x00] + list(exposed_frames.to_bytes(2, byteorder = 'little'))
+            frame_data = [0x00] + \
+                list(dark_frames.to_bytes(2, byteorder = 'little')) + \
+                list(exposed_frames.to_bytes(2, byteorder = 'little'))
             self.__i2c_write(0xC1,frame_data )
             # the value above never seem to be read back correctly if you read over I2C. Also on anyubic board.'
 
         elif exposed_frames == -1:
             # start exposure of current buffer for infinite duration with 5 dark frames to let video data stabilise)
             print("> Starting UV exposure (Infinite Duration)!")
-            self.__i2c_write(0xC1, [0x00, 0x05, 0x00, 0xFF, 0xFF])  
+            self.__i2c_write(0xC1, [0x00]
+                              + list(dark_frames.to_bytes(2, byteorder = 'little'))
+                              + [0xFF, 0xFF])  
             # the value above never seem to be read back correctly if you read over I2C. Also on anyubic board.'
 
         else:
             raise Exception("Invalid exposure time value provided. Value must be positive or -1.")
 
-        time.sleep(0.1) # TODO: optimise delay time; now this is just quick empirical test
+        time.sleep(0.02) # TODO: optimise delay time; now this is just quick empirical test
         if not GPIO.input(self.PRINT_ACTIVE): warnings.warn("PRINT ACTIVE did not go high after starting exposure. Something might be wrong.") 
 
     def stop_exposure(self):
@@ -259,17 +280,19 @@ class DLPC1438:
         
         # this is not exactly optimised for performance  -> see if we can use numpy with spidev 
         preamble = [0x04] + rowcol_data_block + [0x00] + list(length.to_bytes(4, byteorder = 'little')) 
-        data = preamble + pixel_data.tolist() + [0x00, 0x00] # TODO: do we need CRC bytes if we disabled the check?
+        data = preamble + pixel_data.tolist() + [0x00, 0x00, 0x00, 0x00]  # 4 CRC bytes
         with open("spi.txt", "w") as output:
             output.write(str([bin(val) + " , " for val in preamble]))
         return data
 
     def split_spi_transmission(self, offset_width, offset_height, pixel_data):
         """
-        Format and send (multiple) spi transfers to transfer image data to FPGA.
+        Format and send (multiple) spi transfers to transfer image data to FPGA buffer.
 
         Offset width specifies the offset of the image along width in pixels from (top) left of frame.
         Offset height is the same, but for the vertical offset in pixels from top (left) of frame.
+        
+        Data is sent to the currently inactive buffer.
         """
 
         img_width = pixel_data.shape[0]
@@ -317,8 +340,9 @@ class DLPC1438:
         # based on the image width and our SPI buffer size. We need 10 bytes (or less) for other parts 
         # of SPI command besides pixel data.
 
-        # TODO: ensure that this is always an even number!
-        num_rows = math.floor( (self.SPI_BUFFERSIZE-10) / width) - 1  # TODO: can we be more efficient here?
+        eff_buffersize = self.SPI_BUFFERSIZE - 10
+        
+        num_rows = math.floor( ((eff_buffersize) / width) /2 ) * 2  # should be even number
 
         assert num_rows*width < (self.SPI_BUFFERSIZE - 10)  
 
@@ -334,54 +358,99 @@ class DLPC1438:
         SPI_start = time.time()
         for (transfer_idx, data) in enumerate(split_data):
             print(f"- transfer {transfer_idx} has shape: {data.shape}")
+
+            print(f"Row tracker: {row_tracker}")  # TODO: remove or make debug print
             if transfer_idx == 0:
-                preamble = [0x04] + self.__rowcol_data_block(col_start, col_end, row_start) + [0x00] + list(padded_data.size.to_bytes(4, byteorder = 'little'))
+                print(f"the number of bytes we intedn to send: {padded_data.size}")
+                preamble = [0x04] + self.__rowcol_data_block(col_start, col_end, row_start) + [0x00] + list((padded_data.size).to_bytes(4, byteorder = 'little'))
+                preamble = np.array(preamble, dtype=np.uint8)
 
             else:
                 # note that following trasnfers do not contain the "length" of the transfer in preambe
                 preamble = [0x04] + self.__rowcol_data_block(col_start, col_end, row_start + row_tracker) + [0x00]
+                preamble = np.array(preamble, dtype=np.uint8)
                 
             row_tracker += int(data.shape[1] / 2)  # divided by 2 because the row_start is in steps of 2 (see SPI format)
 
+            data = data.flatten("F")
+
+            # Add 4 CRC bytes if this is the final transmission
+            if transfer_idx == (num_transfers-1):
+                # Note that CRC bytes are still needed even if you do not use CRC calculation.
+                # Note also that the TI programmer's guide is wrong on this matter (it says it should be 2 bytes)
+                data = np.append(data, np.array([0x00,0x00,0x00,0x00], dtype=np.uint8)) 
 
             # Note that xfer3 has a max number of bytes it can transfer set in /sys/module/spidev/parameters/bufsiz
-            self.spi.writebytes2(np.insert(data.flatten("F"), 0, preamble))  #  CRC does not seemt o be needed
+            self.spi.writebytes2(np.insert(data, 0, preamble))  # send transmission over spi
+
+        print(f"final row tracker: {row_tracker}")
         print(f"SPI transfer took, {time.time()-SPI_start} seconds. At {self.spi.max_speed_hz}Hz clock.")
 
-    def set_background(self, intensity):
-        print(f"> Setting all pixels to intensity:{intensity} and turning projector on!")
+    def set_background(self, intensity, both_buffers=False):
+        '''
+        Send constant intensity values for all pixels to the inactive buffer.
+
+        Utility function that allows you to define a static background color to draw images
+        on top of with partial draws, or to for example initialise all the framebuffers
+        to black(0) or white (255).
+
+        If `both_buffers` is True, the value will be written to both buffers. Will take approximately
+        twice as long to complete.
+        '''
 
         assert isinstance(intensity, int), "background intensity value must be an 8-bit integer"
         assert 0 <= intensity < 256, "Intensity must be [0, 255]"
+
+        print(f"> Setting all pixels in current SPI buffer to intensity:{intensity}")
  
         # yes, np.transpose(np.ones(y,x)) transfers faster than np.onex(x,y)
         # I agree it feels a bit silly
         pxldata = np.transpose((np.ones((1440, 2560))*int(intensity)).astype(np.uint8))
+        print(f"background image dimensions: {pxldata.shape}")
 
-        self.split_spi_transmission(0, 0, pxldata)
+        self.split_spi_transmission(0, 0, pxldata)  
 
-        time.sleep(0.3)
+        # if you want to set the intensity to both buffers
+        if both_buffers:
+            self.swap_buffer()
+            self.set_background(intensity, False)
 
-        # swap the image buffer to make our SENT SPI data available to FPGA and have
-        # the other buffer available for SPI writing
-        self.SPI_BUFFER_INDEX = not self.SPI_BUFFER_INDEX
-        self.__i2c_write(0xC5, [self.SPI_BUFFER_INDEX])  
-        print(f"Active buffer index: {self.__i2c_read(0xC6,1)[0]}")
 
     def send_image_to_buffer(self, filename, xoffset, yoffset):  
+        '''
+        Send an image's pixel data to the inactive buffer at the specified pixel offset
+        in x and y.
+
+        Main image display function that takes an 8-bit grayscale image as input, and sends it
+        over to the inactive buffer (i.e. the buffer that is not currently received on DMD).
+        Image position offsets are specified in pixels. Note that this function does
+        not display image sent; it merely loads into into the inactive buffer and requires
+        a buffer swap and expose command to actually be used.
+        '''
+
         print("> Sending Image Data over SPI... (SPLIT TECHNIQUE)")
         pxldata = image_to_arr(filename)
 
         self.split_spi_transmission(xoffset, yoffset, pxldata)
+    
+    def swap_buffer(self):
+        '''
+        Swap the inactive buffer (where SPI data goes to) and the active buffer (displayed on DMD).
 
-        time.sleep(0.3)
+        The FPGA has two buffers (0 and 1) that are in active or inactive state. If one buffer is
+        active (can be queried with I2C), the other one is inactive. The active buffer is 
+        sent over the the DMD, while any data sent over SPI to the DMD ends up in the inactive
+        buffer. 
+        
+        Displaying new data will always involve writing to the inactive buffer and
+        then swapping buffers to make the inactive buffer the active buffer.
+        '''
 
         # swap the image buffer to make our SENT SPI data available to FPGA and have
         # the other buffer available for SPI writing
         self.SPI_BUFFER_INDEX = not self.SPI_BUFFER_INDEX
         self.__i2c_write(0xC5, [self.SPI_BUFFER_INDEX])  
-        print(f"Active buffer index: {self.__i2c_read(0xC6,1)[0]}")
-
+        print(f"Swapped buffer. The active buffer index is now: {self.__i2c_read(0xC6,1)[0]}")
 
     def test_FPGA(self):
         """
