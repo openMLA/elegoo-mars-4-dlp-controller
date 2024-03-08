@@ -32,7 +32,7 @@ and we add the following entry to increase the buffer size to 65536  bytes:
 spidev.bufsiz=65536  
 ```
 
-> ![IMPORTANT]
+> [!IMPORTANT]
 >
 > Note that after setting these new values you will need to restart the raspberry pi for the changes to go into effect.
 
@@ -56,6 +56,6 @@ sudo apt install python3-numpy
 sudo apt install python3-pillow
 ```
 
-> ![NOTE]
+> [!NOTE]
 >
 > For some reason Pi OS Lite doesn't love installing via pip, so the commands above are used. I am sure you could install it via pip with minimal effort.
