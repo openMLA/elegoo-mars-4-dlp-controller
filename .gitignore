@@ -1,6 +1,9 @@
 # Some project-specific ignores
 *spi.txt
 *.xlsx
+.temp/*
+*.3mf
+enclosure/.external-models/*
 
 # FreeCAD
 *FCStd1
