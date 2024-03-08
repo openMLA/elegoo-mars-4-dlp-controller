@@ -311,7 +311,7 @@ class DLPC1438:
 
         # we also need to pad the "end/back" of the data because we can only specify end_col in steps
         # of 128.
-        pad_width_end =  (128 - pad_width_start + img_width) % 128
+        pad_width_end =  (128 - (img_width +  pad_width_start) % 128)  % 128  # maybe there is a more efficient way to compute this
         pad_height_end = (2 - pad_height_start + img_height) % 2
 
         print(f"Start col: {col_start} (leftpad:{pad_width_start}, rightpad:{pad_width_end})")
