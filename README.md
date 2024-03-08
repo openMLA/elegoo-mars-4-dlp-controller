@@ -2,6 +2,8 @@
 
 A hat for the raspberry pi that allows a resin 3D printer's **UV light** projector to be controlled. Note that this is (in direct form) only suitable for the projector in the Mars 4 DLP. If you have other boards check out the repository for the [Anycubic Photon Ultra](https://github.com/openMLA/photon-ultra-controller), or get in touch for modifications needed. 
 
+![banner image showing custom image being displayed on the UV projector](media/banner_image.jpg)
+
 The designs in this repository then allow you to project arbitrary **2560x1440** images with UV light on a surface. The native projected pixel size is **50μm**, making PCB fabrication an interesting application. All you would need is a bit of glue code to convert the Gerber files to a rasterised image and then you could easily use the existing 3D printer frame to expose PCB boards. Since you have all the files and access to the code, you can easily tune it to whatever production needs you have.
 
 The UV projector of the Elegoo Mars 4 DLP is [developed and produced by Anhua (D63ZS50B)](https://www.anhuaoe.com/en/industriause/info.aspx?itemid=2694), and seems to be this variety. Under the hood it uses the Texas Instruments DLP300s or DLP301s digital micromirror array.
