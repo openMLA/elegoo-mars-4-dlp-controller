@@ -359,7 +359,6 @@ class DLPC1438:
         for (transfer_idx, data) in enumerate(split_data):
             print(f"- transfer {transfer_idx} has shape: {data.shape}")
 
-            print(f"Row tracker: {row_tracker}")  # TODO: remove or make debug print
             if transfer_idx == 0:
                 print(f"the number of bytes we intedn to send: {padded_data.size}")
                 preamble = [0x04] + self.__rowcol_data_block(col_start, col_end, row_start) + [0x00] + list((padded_data.size).to_bytes(4, byteorder = 'little'))
@@ -383,7 +382,6 @@ class DLPC1438:
             # Note that xfer3 has a max number of bytes it can transfer set in /sys/module/spidev/parameters/bufsiz
             self.spi.writebytes2(np.insert(data, 0, preamble))  # send transmission over spi
 
-        print(f"final row tracker: {row_tracker}")
         print(f"SPI transfer took, {time.time()-SPI_start} seconds. At {self.spi.max_speed_hz}Hz clock.")
 
     def set_background(self, intensity, both_buffers=False):
@@ -415,6 +413,25 @@ class DLPC1438:
             self.swap_buffer()
             self.set_background(intensity, False)
 
+    
+    def send_pixeldata_to_buffer(self, pixeldata, xoffset, yoffset):  
+        '''
+        Send a 2D array of pixeldata to the inactive buffer at the specified pixel offset
+        in x and y.
+
+        Main image display function that takes an np.array of dtype uint8, and sends it
+        over to the inactive buffer (i.e. the buffer that is not currently received on DMD).
+        Image position offsets are specified in pixels. Note that this function does
+        not display data sent; it merely loads into into the inactive buffer and requires
+        a buffer swap and expose command to actually be used.
+        '''
+
+        assert pixeldata.ndim == 2, "pixeldata must be a 2-dimensional array"
+        assert pixeldata.dtype == np.uint8, "pixeldata array must be a uint8 (datatype) array"
+
+        print("> Sending array data over SPI... (SPLIT TECHNIQUE)")
+
+        self.split_spi_transmission(xoffset, yoffset, pixeldata)
 
     def send_image_to_buffer(self, filename, xoffset, yoffset):  
         '''

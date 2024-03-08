@@ -1,5 +1,6 @@
 import RPi.GPIO as GPIO
 import time
+import numpy as np
 import smbus  # I2C
 import spidev  # SPI
 from UV_projector.controller import DLPC1438, Mode
@@ -70,6 +71,16 @@ try:
         time.sleep(0.2)
         DMD.stop_exposure()  # and then manually stop exposure
 
+    # Of course we can also send a dynamically generated numpy array
+    # lets send a numpy array with elements "below the diagonal" all 255
+    DMD.set_background(0, both_buffers=True)  # clearing previous images
+    pixeldata = np.tri(500, dtype=np.uint8)*255
+    DMD.send_pixeldata_to_buffer(pixeldata, 400,400)  # send array containging triangle
+    DMD.swap_buffer()
+    DMD.expose_pattern(exposed_frames = -1)   
+    time.sleep(2)
+    DMD.stop_exposure()  
+
     # You may also want to update an existing frame, rather than redrawing the entire
     # image in the other buffer. In that case, just swap the buffer twice
     DMD.set_background(0, both_buffers=True)  
@@ -99,5 +110,5 @@ try:
     DMD.switch_mode(Mode.STANDBY)
     GPIO.cleanup()
 
-except:
+except KeyboardInterrupt:
     GPIO.cleanup()
