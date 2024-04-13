@@ -12,6 +12,8 @@ The UV projector of the Elegoo Mars 4 DLP is [developed and produced by Anhua (D
 > [!NOTE]  
 > While PCB fabrication is the most straightforward application for this board, this is actually developed as part of an effort towards an open hardware photolithography system. Check out the [openMLA organisation](https://github.com/openMLA/) for more info.
 
+> If you have a projector using the DLPC1438 that uses the parallel video interface (rather than SPI) then you can check out the [PCB design and implementation for the Anycubic Photon Ultra](https://github.com/openMLA/photon-ultra-controller) projector.
+
 ### 🚀 At a glance
 
 Running an SPI clock of ~125MHz it takes:
